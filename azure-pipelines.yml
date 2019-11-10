@@ -29,5 +29,5 @@ steps:
   inputs:
     versionSpec: '$(python.version)'
     architecture: 'x64'
-- script: python -m unittest discover
+- script: python -m unittest -v sqlite3ct.test
   displayName: 'run test'

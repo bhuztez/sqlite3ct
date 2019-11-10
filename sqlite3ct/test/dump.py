@@ -11,7 +11,7 @@ class DumpTests(unittest.TestCase):
     def tearDown(self):
         self.cx.close()
 
-    def CheckTableDump(self):
+    def test_TableDump(self):
         expected_sqls = [
                 """CREATE TABLE "index"("index" blob);"""
                 ,
@@ -49,7 +49,7 @@ class DumpTests(unittest.TestCase):
         [self.assertEqual(expected_sqls[i], actual_sqls[i])
             for i in range(len(expected_sqls))]
 
-    def CheckUnorderableRow(self):
+    def test_UnorderableRow(self):
         # iterdump() should be able to cope with unorderable row types (issue #15545)
         class UnorderableRow:
             def __init__(self, cursor, row):
@@ -69,9 +69,3 @@ class DumpTests(unittest.TestCase):
         self.cu.execute(CREATE_ALPHA)
         got = list(self.cx.iterdump())
         self.assertEqual(expected, got)
-
-def suite():
-    return unittest.TestSuite(unittest.makeSuite(DumpTests, "Check"))
-
-def load_tests(loader, tests, pattern):
-    return suite()

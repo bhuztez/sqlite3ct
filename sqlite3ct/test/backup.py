@@ -155,11 +155,3 @@ class BackupTests(unittest.TestCase):
         with sqlite.connect(':memory:') as bck:
             self.cx.backup(bck, name='attached_db')
             self.verify_backup(bck)
-
-
-def suite():
-    return unittest.makeSuite(BackupTests)
-
-
-def load_tests(loader, tests, pattern):
-    return suite()

@@ -61,7 +61,11 @@ from sqlite3 import (
     converters,
     PrepareProtocol)
 
+from .exc import throw
+
 def _set_error(rc, errmsg=None):
+    throw()
+
     if rc == SQLITE_OK:
         return
     if errmsg is None:

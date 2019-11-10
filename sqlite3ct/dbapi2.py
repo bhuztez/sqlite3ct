@@ -128,6 +128,7 @@ def _column_name(stmt, i):
 
 collation_name_letters = string.ascii_letters + string.digits + '_'
 
+
 class Cursor:
     _initialized = False
 
@@ -215,6 +216,8 @@ class Cursor:
 
 
     def _execute(self, sql):
+        if self._stmt is not None:
+            self._stmt.finalize()
         self._stmt = None
         if not isinstance(sql, str):
             raise TypeError("operation parameter must be str")
@@ -225,6 +228,7 @@ class Cursor:
         if stmt is None:
             return
         if _check_remaining_sql(remain):
+            stmt.finalize()
             raise Warning("You can only execute one statement at a time.")
 
         self.description = tuple(_column_name(stmt, i) for i in range(stmt.column_count())) if not stmt.is_dml else None
@@ -240,18 +244,21 @@ class Cursor:
         self._check()
         self._locked = True
         try:
-            stmt = self._execute(sql)
-            if stmt is None:
+            self._stmt = self._execute(sql)
+            if self._stmt is None:
                 return
 
-            self._bind(stmt, parameters)
+            stmt = self._stmt
 
-            rc = stmt.step()
+            self._bind(self._stmt, parameters)
+
+            rc = self._stmt.step()
+            if rc != SQLITE_ROW:
+                self._stmt.finalize()
+                self._stmt = None
+
             if rc not in (SQLITE_ROW, SQLITE_DONE):
                 self._set_error()
-
-            if rc == SQLITE_ROW:
-                self._stmt = stmt
 
             self.rowcount = self.connection._db.changes() if stmt.is_dml else -1
             self.lastrowid = self.connection._db.last_insert_rowid()
@@ -263,8 +270,8 @@ class Cursor:
         self._check()
         self._locked = True
         try:
-            stmt = self._execute(sql)
-            if stmt is None:
+            self._stmt = self._execute(sql)
+            if self._stmt is None:
                 return
 
             rowcount = 0
@@ -282,15 +289,16 @@ class Cursor:
                 params = parameters
 
             for p in params:
-                self._bind(stmt, p)
+                self._bind(self._stmt, p)
 
-                rc = stmt.step()
+                rc = self._stmt.step()
                 if rc == SQLITE_ROW:
                     raise ProgrammingError("executemany() can only execute DML statements.")
-                elif rc != SQLITE_DONE:
+                if rc != SQLITE_DONE:
                     self._set_error()
+
                 rowcount += self.connection._db.changes()
-                stmt.reset()
+                self._stmt.reset()
 
             self.rowcount = rowcount
             return self
@@ -300,6 +308,8 @@ class Cursor:
     def executescript(self, sql_script):
         self._check()
         self._reset = False
+        if self._stmt is not None:
+            self._stmt.finalize()
         self._stmt = None
 
         if not isinstance(sql_script, str):
@@ -309,14 +319,16 @@ class Cursor:
         self.connection.commit()
 
         while script:
-            stmt, script = self.connection._prepare(script)
-            if stmt is not None:
+            self._stmt, script = self.connection._prepare(script)
+            if self._stmt is not None:
                 while True:
-                    rc = stmt.step()
+                    rc = self._stmt.step()
                     if rc == SQLITE_DONE:
                         break
                     if rc != SQLITE_ROW:
                         self._set_error()
+                self._stmt.finalize()
+                self._stmt = None
         return self
 
     def _fetch(self, index):
@@ -363,6 +375,7 @@ class Cursor:
 
         rc = self._stmt.step()
         if rc != SQLITE_ROW:
+            self._stmt.finalize()
             self._stmt = None
         if rc not in (SQLITE_ROW, SQLITE_DONE):
             self._set_error()
@@ -388,15 +401,21 @@ class Cursor:
             return
         self._check()
         self.connection._check_thread()
+        if self._stmt is not None:
+            self._stmt.finalize()
         self._stmt = None
         self._closed = True
+
+    def __del__(self):
+        if not self._initialized:
+            return
+        self.close()
 
     def setinputsizes(self, sizes):
         pass
 
     def setoutputsize(self, size, column=None):
         pass
-
 
 class Connection:
     Warning = Warning
@@ -481,12 +500,14 @@ class Connection:
     def begin(self):
         stmt, _ = self._prepare(self._begin_statement.encode())
         stmt.step()
+        stmt.finalize()
 
     def commit(self):
         self._check()
         if self.in_transaction:
             stmt, _ = self._prepare(b"COMMIT")
             stmt.step()
+            stmt.finalize()
 
     def rollback(self):
         self._check()
@@ -495,6 +516,7 @@ class Connection:
                 c._reset = True
             stmt, _ = self._prepare(b"ROLLBACK")
             stmt.step()
+            stmt.finalize()
 
     def close(self):
         if self._db is None:
@@ -510,7 +532,7 @@ class Connection:
             return
         if self._db is None:
             return
-        _set_error(self._db.close_v2())
+        self._db.close_v2()
 
     def cursor(self, factory=Cursor):
         self._check()
@@ -574,20 +596,22 @@ class Connection:
             self._db.set_authorizer(_authorizer_callback, id(authorizer_callback))
             self._set_error()
 
-    def set_progress_handler(self, handler, n):
+    def set_progress_handler(self, progress_handler, n):
         self._check()
-        if handler is None:
+        if progress_handler is None:
             self._db.progress_handler(0, None, None)
         else:
-            self._function_pinboard[handler] = None
-            self._db.progress_handler(n, _progress_handler, id(handler))
+            self._function_pinboard[progress_handler] = None
+            self._db.progress_handler(n, _progress_handler, id(progress_handler))
 
     def set_trace_callback(self, trace_callback):
         self._check()
         if trace_callback is None:
-            self._db.trace(0, None, None)
+            self._db.trace(None, None)
         else:
-            self._db.trace(1, _trace_callback, id(trace_callback))
+            self._function_pinboard[trace_callback] = None
+            self._db.trace(_trace_callback, id(trace_callback))
+
 
     @property
     def in_transaction(self):
@@ -652,7 +676,7 @@ class Connection:
         backup = target._db.backup(b"main", self._db, name.encode())
         rc = target._db.errcode()
         _set_error(rc)
-        sleep_ms = sleep * 1000.0
+        sleep_ms = int(sleep * 1000.0)
 
         while rc != SQLITE_DONE:
             rc = backup.step(pages, sleep_ms)

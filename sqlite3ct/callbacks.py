@@ -8,32 +8,24 @@ def enable_callback_tracebacks(flag):
     _enable_callback_tracebacks = flag
 
 from ctypes import (
-    pythonapi, PYFUNCTYPE, Structure, POINTER,
-    c_ssize_t, c_char_p, c_uint, c_int, c_void_p, py_object,
-    string_at, cast, sizeof)
+    PYFUNCTYPE, POINTER, sizeof, cast, string_at,
+    c_int, c_void_p, py_object, c_char_p)
 
 from ._sqlite3 import (
     SQLITE_DENY,
     SQLITE_ABORT,
-    sqlite3_value, 
+    sqlite3_value,
     sqlite3_result,
     sqlite3_user_data,
     sqlite3_result_error,
     sqlite3_result_error_code,
     sqlite3_aggregate_context)
 
-class PyObject(Structure):
-    _fields_ = [
-        ("ob_refcnt", c_ssize_t),
-        ("objtype", py_object)
-    ]
+from .exc import (
+    PyErr_SetExcInfo,
+    PyObject,
+    throw)
 
-    if hasattr(sys, "getobjects"):
-        _fields_ = [("ob_next", c_void_p), ("ob_prev", c_void_p)] + _fields_
-
-PyErr_SetExcInfo = pythonapi.PyErr_SetExcInfo
-PyErr_SetExcInfo.argtypes = [py_object, py_object, py_object]
-PyErr_SetExcInfo.restype = None
 
 class ExcWrapper:
 
@@ -52,6 +44,7 @@ def wraps_exception(func):
         if exc_type is not None:
             sqlite3_result_error_code(ctx, SQLITE_ABORT)
             PyErr_SetExcInfo(exc_type, exc_value, exc_tb)
+
     return wrapper
 
 
@@ -78,10 +71,14 @@ def _authorizer_callback(callback, action, arg1, arg2, dbname, source):
 def _progress_handler(handler):
     return handler()
 
-@PYFUNCTYPE(c_int, c_uint, py_object, c_void_p, c_void_p)
-def _trace_callback(trace_type, callback, stmt, sql):
-    callback(string_at(sql).decode())
-    return 0
+# @PYFUNCTYPE(c_int, c_uint, py_object, c_void_p, c_void_p)
+# def _trace_callback(trace_type, callback, stmt, sql):
+#     callback(string_at(sql).decode())
+#     return 0
+
+@PYFUNCTYPE(None, py_object, c_char_p)
+def _trace_callback(callback, sql):
+    callback(sql.decode())
 
 
 @PYFUNCTYPE(None, c_void_p, c_int, POINTER(c_void_p))
@@ -135,7 +132,8 @@ def _aggregate_step(ctx, argc, argv):
 @PYFUNCTYPE(None, c_void_p)
 @wraps_exception
 def _aggregate_final(ctx):
-    instance = py_object.from_address(sqlite3_aggregate_context(ctx, sizeof(py_object)))
+    addr = sqlite3_aggregate_context(ctx, sizeof(py_object))
+    instance = py_object.from_address(addr)
     try:
         obj = instance.value
     except ValueError:
@@ -143,6 +141,9 @@ def _aggregate_final(ctx):
 
     o = PyObject.from_address(id(obj))
     o.ob_refcnt -= 1
+    c_void_p.from_address(addr).value = None
+
+    restore = sys.exc_info()[0] is not None
 
     try:
         ret = obj.finalize()
@@ -152,3 +153,6 @@ def _aggregate_final(ctx):
         sqlite3_result_error(ctx, b"user-defined aggregate's 'finalize' method raised error", -1)
     else:
         sqlite3_result(ctx, ret)
+        if restore:
+            throw()
+            raise

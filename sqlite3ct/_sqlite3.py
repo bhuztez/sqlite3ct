@@ -2,11 +2,13 @@ from functools import wraps
 from inspect import signature, Signature
 from ctypes import (
     PyDLL, pythonapi, CFUNCTYPE, POINTER, Structure, cast, byref,
-    c_char, c_ubyte, c_int, c_uint, c_ssize_t, c_double,
-    c_char_p, c_void_p, string_at, py_object)
+    c_ubyte, c_int, c_uint, c_double,
+    c_char_p, c_void_p, string_at)
 
-import os
-if os.name == 'nt':
+import sys
+libsqlite = None
+
+if sys.platform == 'win32':
     libsqlite = PyDLL("C:/ProgramData/chocolatey/lib/SQLite/tools/sqlite3.dll")
 else:
     import _sqlite3
@@ -448,9 +450,9 @@ def sqlite3_last_insert_rowid(db: sqlite3_p) -> sqlite3_int64:
     pass
 
 # Set the Last Insert Rowid value
-@annotate
-def sqlite3_set_last_insert_rowid(db: sqlite3_p, rowid: sqlite3_int64):
-    pass
+# @annotate
+# def sqlite3_set_last_insert_rowid(db: sqlite3_p, rowid: sqlite3_int64):
+#     pass
 
 # Count The Number Of Rows Modified
 @annotate
@@ -578,12 +580,12 @@ SQLITE_TRACE_CLOSE     = 0x08
 
 # SQL Trace Hook
 @annotate
-def sqlite3_trace_v2(
-        db: sqlite3_p,
-        uMask: c_uint,
-        xCallback: c_void_p,
-        pCtx: c_void_p) -> c_int:
+def sqlite3_trace(db: sqlite3_p, xTrace: c_void_p, pCtx: c_void_p) -> c_void_p:
     pass
+
+# @annotate
+# def sqlite3_trace_v2(db: sqlite3_p, uMask: c_uint, xCallback: c_void_p, pCtx: c_void_p) -> c_int:
+#     pass
 
 # Query Progress Callbacks
 @annotate
@@ -659,24 +661,34 @@ SQLITE_PREPARE_NO_VTAB                = 0x04
 
 # Compiling An SQL Statement
 @annotate
-def sqlite3_prepare_v3(
+def sqlite3_prepare_v2(
         db: sqlite3_p,                    # Database handle
         zSql: c_void_p,                   # SQL statement, UTF-8 encoded
         nByte: c_int,                     # Maximum length of zSql in bytes.
-        prepFlags: c_uint,                # Zero or more SQLITE_PREPARE_ flags
         ppStmt: POINTER(sqlite3_stmt_p),  # OUT: Statement handle
         pzTail: POINTER(c_void_p)         # OUT: Pointer to unused portion of zSql
 ) -> c_int:
     pass
+
+# @annotate
+# def sqlite3_prepare_v3(
+#         db: sqlite3_p,                    # Database handle
+#         zSql: c_void_p,                   # SQL statement, UTF-8 encoded
+#         nByte: c_int,                     # Maximum length of zSql in bytes.
+#         prepFlags: c_uint,                # Zero or more SQLITE_PREPARE_ flags
+#         ppStmt: POINTER(sqlite3_stmt_p),  # OUT: Statement handle
+#         pzTail: POINTER(c_void_p)         # OUT: Pointer to unused portion of zSql
+# ) -> c_int:
+#     pass
 
 # Retrieving Statement SQL
 @annotate
 def sqlite3_sql(pStmt: sqlite3_stmt_p) -> c_char_p:
     pass
 
-@annotate
-def sqlite3_expanded_sql(pStmt: sqlite3_stmt_p) -> c_char_p:
-    pass
+# @annotate
+# def sqlite3_expanded_sql(pStmt: sqlite3_stmt_p) -> c_char_p:
+#     pass
 
 # @annotate
 # def sqlite3_normalized_sql(pStmt: sqlite3_stmt_p) -> c_char_p:
@@ -746,13 +758,9 @@ def sqlite3_bind_text64(
 def sqlite3_bind_value(pStmt: sqlite3_stmt_p, index: c_int, value: sqlite3_value_p) -> c_int:
     pass
 
-@annotate
-def sqlite3_bind_pointer(pStmt: sqlite3_stmt_p, index: c_int, value: c_void_p, type: c_char_p, destructor: sqlite3_destructor_type) -> c_int:
-    pass
-
-@annotate
-def sqlite3_bind_zeroblob(pStmt: sqlite3_stmt_p, index: c_int, n: c_int) -> c_int:
-    pass
+# @annotate
+# def sqlite3_bind_pointer(pStmt: sqlite3_stmt_p, index: c_int, value: c_void_p, type: c_char_p, destructor: sqlite3_destructor_type) -> c_int:
+#     pass
 
 @annotate
 def sqlite3_bind_zeroblob64(pStmt: sqlite3_stmt_p, index: c_int, n: sqlite3_uint64) -> c_int:
@@ -790,17 +798,17 @@ def sqlite3_column_name(pStmt: sqlite3_stmt_p, n: c_int) -> c_char_p:
     pass
 
 # Source Of Data In A Query Result
-@annotate
-def sqlite3_column_database_name(pStmt: sqlite3_stmt_p, n: c_int) -> c_char_p:
-    pass
+# @annotate
+# def sqlite3_column_database_name(pStmt: sqlite3_stmt_p, n: c_int) -> c_char_p:
+#     pass
 
-@annotate
-def sqlite3_column_table_name(pStmt: sqlite3_stmt_p, n: c_int) -> c_char_p:
-    pass
+# @annotate
+# def sqlite3_column_table_name(pStmt: sqlite3_stmt_p, n: c_int) -> c_char_p:
+#     pass
 
-@annotate
-def sqlite3_column_origin_name(pStmt: sqlite3_stmt_p, n: c_int) -> c_char_p:
-    pass
+# @annotate
+# def sqlite3_column_origin_name(pStmt: sqlite3_stmt_p, n: c_int) -> c_char_p:
+#     pass
 
 # Declared Datatype Of A Query Result
 @annotate
@@ -882,19 +890,19 @@ def sqlite3_create_function_v2(
         xDestroy: sqlite3_destructor_type) -> c_int:
     pass
 
-@annotate
-def sqlite3_create_window_function(
-        db: c_void_p,
-        zFunctionName: c_char_p,
-        nArg: c_int,
-        eTextRep: c_int,
-        pApp: c_void_p,
-        xFunc: c_void_p,
-        xStep: c_void_p,
-        xFinal: c_void_p,
-        xInverse: c_void_p,
-        xDestroy: sqlite3_destructor_type) -> c_int:
-    pass
+# @annotate
+# def sqlite3_create_window_function(
+#         db: c_void_p,
+#         zFunctionName: c_char_p,
+#         nArg: c_int,
+#         eTextRep: c_int,
+#         pApp: c_void_p,
+#         xFunc: c_void_p,
+#         xStep: c_void_p,
+#         xFinal: c_void_p,
+#         xInverse: c_void_p,
+#         xDestroy: sqlite3_destructor_type) -> c_int:
+#     pass
 
 # Text Encodings
 SQLITE_UTF8          = 1    # IMP: R-37514-35566
@@ -926,9 +934,9 @@ def sqlite3_value_int(value: sqlite3_value_p) -> c_int:
 def sqlite3_value_int64(value: sqlite3_value_p) -> sqlite3_int64:
     pass
 
-@annotate
-def sqlite3_value_pointer(value: sqlite3_value_p, type: c_char_p) -> c_void_p:
-    pass
+# @annotate
+# def sqlite3_value_pointer(value: sqlite3_value_p, type: c_char_p) -> c_void_p:
+#     pass
 
 @annotate
 def sqlite3_value_text(value: sqlite3_value_p) -> c_void_p:
@@ -946,14 +954,14 @@ def sqlite3_value_type(value: sqlite3_value_p) -> c_int:
 def sqlite3_value_numeric_type(value: sqlite3_value_p) -> c_int:
     pass
 
-@annotate
-def sqlite3_value_nochange(value: sqlite3_value_p) -> c_int:
-    pass
+# @annotate
+# def sqlite3_value_nochange(value: sqlite3_value_p) -> c_int:
+#     pass
 
 # Finding The Subtype Of SQL Values
-@annotate
-def sqlite3_value_subtype(value: sqlite3_value_p) -> c_uint:
-    pass
+# @annotate
+# def sqlite3_value_subtype(value: sqlite3_value_p) -> c_uint:
+#     pass
 
 # Copy And Free SQL Values
 @annotate
@@ -1033,18 +1041,18 @@ def sqlite3_result_text64(context: sqlite3_context_p, value: c_char_p, nBytes: s
 def sqlite3_result_value(context: sqlite3_context_p, value: sqlite3_value_p):
     pass
 
-@annotate
-def sqlite3_result_pointer(context: sqlite3_context_p, value: c_void_p, type: c_char_p, destructor: sqlite3_destructor_type):
-    pass
+# @annotate
+# def sqlite3_result_pointer(context: sqlite3_context_p, value: c_void_p, type: c_char_p, destructor: sqlite3_destructor_type):
+#     pass
 
 @annotate
 def sqlite3_result_zeroblob64(context: sqlite3_context_p, n: sqlite3_uint64) -> c_int:
     pass
 
 # Setting The Subtype Of An SQL Function
-@annotate
-def sqlite3_result_subtype(context: sqlite3_context_p, subtype: c_uint):
-    pass
+# @annotate
+# def sqlite3_result_subtype(context: sqlite3_context_p, subtype: c_uint):
+#     pass
 
 # Define New Collating Sequences
 @annotate
@@ -1449,98 +1457,18 @@ def sqlite3_db_mutex(db: sqlite3_p) -> sqlite3_mutex_p:
 def sqlite3_file_control(db: sqlite3_p, zDbName: c_char_p, op: c_int, pArg: c_void_p):
     pass
 
-# Testing Interface
-sqlite3_test_control = libsqlite.sqlite3_test_control
-
-# Testing Interface Operation Codes
-SQLITE_TESTCTRL_FIRST                   =  5
-SQLITE_TESTCTRL_PRNG_SAVE               =  5
-SQLITE_TESTCTRL_PRNG_RESTORE            =  6
-SQLITE_TESTCTRL_PRNG_RESET              =  7  # NOT USED
-SQLITE_TESTCTRL_BITVEC_TEST             =  8
-SQLITE_TESTCTRL_FAULT_INSTALL           =  9
-SQLITE_TESTCTRL_BENIGN_MALLOC_HOOKS     = 10
-SQLITE_TESTCTRL_PENDING_BYTE            = 11
-SQLITE_TESTCTRL_ASSERT                  = 12
-SQLITE_TESTCTRL_ALWAYS                  = 13
-SQLITE_TESTCTRL_RESERVE                 = 14
-SQLITE_TESTCTRL_OPTIMIZATIONS           = 15
-SQLITE_TESTCTRL_ISKEYWORD               = 16  # NOT USED
-SQLITE_TESTCTRL_SCRATCHMALLOC           = 17  # NOT USED
-SQLITE_TESTCTRL_INTERNAL_FUNCTIONS      = 17
-SQLITE_TESTCTRL_LOCALTIME_FAULT         = 18
-SQLITE_TESTCTRL_EXPLAIN_STMT            = 19  # NOT USED
-SQLITE_TESTCTRL_ONCE_RESET_THRESHOLD    = 19
-SQLITE_TESTCTRL_NEVER_CORRUPT           = 20
-SQLITE_TESTCTRL_VDBE_COVERAGE           = 21
-SQLITE_TESTCTRL_BYTEORDER               = 22
-SQLITE_TESTCTRL_ISINIT                  = 23
-SQLITE_TESTCTRL_SORTER_MMAP             = 24
-SQLITE_TESTCTRL_IMPOSTER                = 25
-SQLITE_TESTCTRL_PARSER_COVERAGE         = 26
-SQLITE_TESTCTRL_RESULT_INTREAL          = 27
-SQLITE_TESTCTRL_PRNG_SEED               = 28
-SQLITE_TESTCTRL_EXTRA_SCHEMA_CHECKS     = 29
-SQLITE_TESTCTRL_LAST                    = 29  # Largest TESTCTRL
-
 # SQL Keyword Checking
-@annotate
-def sqlite3_keyword_count() -> c_int:
-    pass
+# @annotate
+# def sqlite3_keyword_count() -> c_int:
+#     pass
 
-@annotate
-def sqlite3_keyword_name(N: c_int, Z: POINTER(c_char_p), L: POINTER(c_int)) -> c_int:
-    pass
+# @annotate
+# def sqlite3_keyword_name(N: c_int, Z: POINTER(c_char_p), L: POINTER(c_int)) -> c_int:
+#     pass
 
-@annotate
-def sqlite3_keyword_check(Z: POINTER(c_char_p), L: POINTER(c_int)) -> c_int:
-    pass
-
-# Dynamic String Object
-sqlite3_str_p = c_void_p
-
-# Create A New Dynamic String Object
-@annotate
-def sqlite3_str_new(db: sqlite3_p) -> sqlite3_str_p:
-    pass
-
-# Finalize A Dynamic String
-@annotate
-def sqlite3_str_finish(s: sqlite3_str_p) -> c_char_p:
-    pass
-
-# Add Content To A Dynamic String
-sqlite3_str_appendf = libsqlite.sqlite3_str_appendf
-sqlite3_str_vappendf = libsqlite.sqlite3_str_vappendf
-
-@annotate
-def sqlite3_str_append(s: sqlite3_str_p, zIn: c_char_p, N: c_int):
-    pass
-
-@annotate
-def sqlite3_str_appendall(s: sqlite3_str_p, zIn: c_char_p):
-    pass
-
-@annotate
-def sqlite3_str_appendchar(s: sqlite3_str_p, N: c_int, C: c_char):
-    pass
-
-@annotate
-def sqlite3_str_reset(s: sqlite3_str_p):
-    pass
-
-# Status Of A Dynamic String
-@annotate
-def sqlite3_str_errcode(s: sqlite3_str_p) -> c_int:
-    pass
-
-@annotate
-def sqlite3_str_length(s: sqlite3_str_p) -> c_int:
-    pass
-
-@annotate
-def sqlite3_str_value(s: sqlite3_str_p) -> c_char_p:
-    pass
+# @annotate
+# def sqlite3_keyword_check(Z: POINTER(c_char_p), L: POINTER(c_int)) -> c_int:
+#     pass
 
 # SQLite Runtime Status
 @annotate
@@ -1650,25 +1578,6 @@ def sqlite3_backup_remaining(p: sqlite3_backup_p) -> c_int:
 def sqlite3_backup_pagecount(p: sqlite3_backup_p) -> c_int:
     pass
 
-# String Comparison
-@annotate
-def sqlite3_stricmp(s1: c_char_p, s2: c_char_p) -> c_int:
-    pass
-
-@annotate
-def sqlite3_strnicmp(s1: c_char_p, s2: c_char_p, n: c_int) -> c_int:
-    pass
-
-# String Globbing
-@annotate
-def sqlite3_strglob(zGlob: c_char_p, zStr: c_char_p) -> c_int:
-    pass
-
-# String LIKE Matching
-@annotate
-def sqlite3_strlike(zGlob: c_char_p, zStr: c_char_p, cEsc: c_uint) -> c_int:
-    pass
-
 # Error Logging Interface
 sqlite3_log = libsqlite.sqlite3_log
 
@@ -1716,11 +1625,11 @@ def sqlite3_vtab_on_conflict(db: sqlite3_p) -> c_int:
     pass
 
 # Determine If Virtual Table Column Access Is For UPDATE
-@annotate
-def sqlite3_vtab_nochange(context: sqlite3_context_p) -> c_int:
-    pass
+# @annotate
+# def sqlite3_vtab_nochange(context: sqlite3_context_p) -> c_int:
+#     pass
 
-# Conflict resolution modes
+# conflict resolution modes
 SQLITE_ROLLBACK = 1
 # SQLITE_IGNORE = 2 # Also used by sqlite3_authorizer() callback
 SQLITE_FAIL     = 3
@@ -1728,19 +1637,10 @@ SQLITE_FAIL     = 3
 SQLITE_REPLACE  = 5
 
 # Flush caches to disk mid-transaction
-@annotate
-def sqlite3_db_cacheflush(db: sqlite3_p) -> c_int:
-    pass
+# @annotate
+# def sqlite3_db_cacheflush(db: sqlite3_p) -> c_int:
+#     pass
 
-# Low-level system error code
-@annotate
-def sqlite3_system_errno(db: sqlite3_p) -> c_int:
-    pass
-
-
-PyErr_GetExcInfo = pythonapi.PyErr_GetExcInfo
-PyErr_GetExcInfo.argtypes = [POINTER(py_object), POINTER(py_object), POINTER(py_object)]
-PyErr_GetExcInfo.restype = None
 
 def sqlite3_value(arg):
     t = sqlite3_value_type(arg)
@@ -1771,6 +1671,7 @@ def sqlite3_result(ctx, value):
         sqlite3_result_blob64(ctx, value, len(value), SQLITE_TRANSIENT)
     else:
         assert False
+
 
 class Statement:
 
@@ -1834,28 +1735,22 @@ class Statement:
     def column_name(self, index):
         return sqlite3_column_name(self._stmt, index)
 
-    def column_database_name(self, index):
-        return sqlite3_column_database_name(self._stmt, index)
+    # def column_database_name(self, index):
+    #     return sqlite3_column_database_name(self._stmt, index)
 
-    def column_table_name(self, index):
-        return sqlite3_column_table_name(self._stmt, index)
+    # def column_table_name(self, index):
+    #     return sqlite3_column_table_name(self._stmt, index)
 
-    def column_origin_name(self, index):
-        return sqlite3_column_origin_name(self._stmt, index)
+    # def column_origin_name(self, index):
+    #     return sqlite3_column_origin_name(self._stmt, index)
 
     def column_decltype(self, index):
         return sqlite3_column_decltype(self._stmt, index)
 
     def step(self):
         rc = sqlite3_step(self._stmt)
-        exc_type = py_object()
-        exc_value = py_object()
-        exc_tb = py_object()
-        PyErr_GetExcInfo(byref(exc_type), byref(exc_value), byref(exc_tb))
-        if rc not in (SQLITE_DONE, SQLITE_ROW):
-            self.reset()
-            if exc_type.value is not None:
-                raise
+        # if rc not in (SQLITE_DONE, SQLITE_ROW):
+        #     self.reset()
         return rc
 
     def data_count(self):
@@ -1903,17 +1798,14 @@ class Statement:
         else:
             assert False
 
-    def finalize(self):
-        return sqlite3_finalize(self._stmt)
-
     def db_handle(self):
         return sqlite3_db_handle(self._stmt)
 
     def reset(self):
         return sqlite3_reset(self._stmt)
 
-    def __del__(self):
-        assert sqlite3_finalize(self._stmt) == SQLITE_OK
+    def finalize(self):
+        return sqlite3_finalize(self._stmt)
 
 
 class Database:
@@ -1936,9 +1828,6 @@ class Database:
     def last_insert_rowid(self):
         return sqlite3_last_insert_rowid(self._db)
 
-    def set_last_insert_rowid(self, n):
-        sqlite3_last_insert_rowid(self._db, n)
-
     def changes(self):
         return sqlite3_changes(self._db)
 
@@ -1951,8 +1840,8 @@ class Database:
     def set_authorizer(self, callback, arg):
         return sqlite3_set_authorizer(self._db, callback, arg)
 
-    def trace(self, mask, callback, arg):
-        sqlite3_trace_v2(self._db, mask, callback, arg)
+    def trace(self, callback, arg):
+        sqlite3_trace(self._db, callback, arg)
 
     def progress_handler(self, n, handler, arg):
         sqlite3_progress_handler(self._db, n, handler, arg)
@@ -1969,14 +1858,13 @@ class Database:
     def limit(self, key, val):
         return sqlite3_limit(self._db, key, val)
 
-    def prepare(self, sql, flags=0):
+    def prepare(self, sql):
         stmt = Statement()
         tail = c_void_p(None)
-        rc = sqlite3_prepare_v3(
+        rc = sqlite3_prepare_v2(
             self._db,
             sql,
             len(sql),
-            0,
             byref(stmt._stmt),
             byref(tail))
         if rc == SQLITE_OK:
